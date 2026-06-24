@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Canvas Admin</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#050505;color:#fff;padding:20px}
+.box{max-width:700px;margin:auto;background:#111;padding:24px;border-radius:16px;box-shadow: 0 4px 15px rgba(0,0,0,0.5);}
+h2{margin-top:0;}
+input,button,select{width:100%;padding:12px;margin:8px 0;border-radius:10px;border:none;box-sizing: border-box;}
+input,select{background:#222;color:#fff;border:1px solid #333;}
+input:focus,select:focus{outline:none;border-color:#F5C518;}
+button{background:#FFD700;color:#000;font-weight:bold;cursor:pointer;transition:background 0.2s;}
+button:hover{background:#e6c200;}
+#panel{display:none}
+
+/* Custom Features Styling */
+.form-row {display:flex; gap:10px; margin:8px 0;}
+.form-group {flex:1;}
+.form-group label {font-size:12px; color:#aaa; display:block; margin-bottom:4px;}
+
+/* IMDb Rating Style */
+.imdb-rating-box {
+  background: #1a1a1a;
+  padding: 12px;
+  border-radius: 10px;
+  border-left: 4px solid #F5C518; /* IMDb Yellow */
+  margin: 10px 0;
+}
+.imdb-rating-box label {
+  color: #F5C518;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.item{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#1a1a1a;padding:12px;margin-top:8px;border-radius:8px;border:1px solid #252525;}
+.item-info {flex:1;}
+.item-info div {font-size:12px; color:#88h; margin-top:4px;}
+.btn-group {display:flex; gap:5px;}
+.edit-btn {width:auto; background:#1EAA53; color:#fff; margin:0; padding:6px 12px;}
+.edit-btn:hover {background:#188942;}
+.del{width:auto;background:#d33;color:#fff; margin:0; padding:6px 12px;}
+.del:hover {background:#b32424;}
+.cancel-btn {background:#444; color:#fff; margin-top:0;}
+.cancel-btn:hover {background:#333;}
+</style>
+</head>
+<body>
+<div class="box" id="login">
+<h2>Admin Login</h2>
+<input id="pass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+
+<div class="box" id="panel">
+<h2 id="form-title">My Canvas Dashboard (Upload Mode)</h2>
+
+<input id="title" placeholder="Movie / Artwork Title">
+<input id="image" placeholder="Image URL">
+
+<!-- Like and Dislike Section -->
+<div class="form-row">
+  <div class="form-group">
+    <label for="likes">👍 Initial Likes</label>
+    <input id="likes" type="number" value="0" min="0">
+  </div>
+  <div class="form-group">
+    <label for="dislikes">👎 Initial Dislikes</label>
+    <input id="dislikes" type="number" value="0" min="0">
+  </div>
+</div>
+
+<!-- IMDb Style Rating Section -->
+<div class="imdb-rating-box">
+  <label>⭐ IMDb Rating</label>
+  <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
+    <input id="rating" type="range" min="1.0" max="10.0" step="0.1" value="7.5" oninput="document.getElementById('ratingVal').innerText = this.value">
+    <span style="font-weight:bold; color:#F5C518; min-width:40px; text-align:right;"><span id="ratingVal">7.5</span>/10</span>
+  </div>
+</div>
+
+<button id="submitBtn" onclick="uploadArtwork()">Upload Movie</button>
+<button id="cancelEditBtn" class="cancel-btn" style="display:none;" onclick="resetForm()">Cancel Edit</button>
+
+<hr style="border:0; border-top:1px solid #333; margin:20px 0;">
+<h3>Uploaded Items List</h3>
+<div id="list"></div>
+</div>
+
+<script>
+const PASSWORD='oo00.in';
+const DB='https://my-art-14983-default-rtdb.firebaseio.com/artworks';
+
+let editMode = false;
+let editId = null;
+
+function login(){
+ if(document.getElementById('pass').value===PASSWORD){
+   document.getElementById('login').style.display='none';
+   document.getElementById('panel').style.display='block';
+   loadArtworks();
+ } else alert('Wrong Password');
+}
+
+async function uploadArtwork(){
+ const title=document.getElementById('title').value.trim();
+ const image=document.getElementById('image').value.trim();
+ const likes=parseInt(document.getElementById('likes').value) || 0;
+ const dislikes=parseInt(document.getElementById('dislikes').value) || 0;
+ const rating=document.getElementById('rating').value;
+
+ if(!title || !image) {
+   alert('Please fill both Title and Image URL');
+   return;
+ }
+
+ const payload = {
+   title,
+   image,
+   likes,
+   dislikes,
+   rating,
+   createdAt: Date.now()
+ };
+
+ if(editMode && editId) {
+   // UPDATE MODE
+   await fetch(`${DB}/${editId}.json`, {
+     method: 'PUT',
+     headers: {'Content-Type': 'application/json'},
+     body: JSON.stringify(payload)
+   });
+   alert('Item updated successfully!');
+ } else {
+   // FRESH UPLOAD MODE
+   await fetch(DB+'.json',{
+     method:'POST',
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify(payload)
+   });
+   alert('Item uploaded successfully!');
+ }
+
+ resetForm();
+ loadArtworks();
+}
+
+function startEdit(id, title, image, likes, dislikes, rating) {
+ editMode = true;
+ editId = id;
+ 
+ document.getElementById('form-title').innerText = "My Canvas Dashboard (Edit Mode)";
+ document.getElementById('title').value = title;
+ document.getElementById('image').value = image;
+ document.getElementById('likes').value = likes || 0;
+ document.getElementById('dislikes').value = dislikes || 0;
+ document.getElementById('rating').value = rating || 7.5;
+ document.getElementById('ratingVal').innerText = rating || 7.5;
+ 
+ document.getElementById('submitBtn').innerText = "Update Movie";
+ document.getElementById('cancelEditBtn').style.display = "block";
+ window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function resetForm() {
+ editMode = false;
+ editId = null;
+ document.getElementById('form-title').innerText = "My Canvas Dashboard (Upload Mode)";
+ document.getElementById('title').value = '';
+ document.getElementById('image').value = '';
+ document.getElementById('likes').value = '0';
+ document.getElementById('dislikes').value = '0';
+ document.getElementById('rating').value = '7.5';
+ document.getElementById('ratingVal').innerText = '7.5';
+ document.getElementById('submitBtn').innerText = "Upload Movie";
+ document.getElementById('cancelEditBtn').style.display = "none";
+}
+
+async function loadArtworks(){
+ const r=await fetch(DB+'.json');
+ const d=await r.json();
+ const list=document.getElementById('list');
+ list.innerHTML='';
+ if(!d) {
+   list.innerHTML = '<div style="color:#666; padding:10px;">No items found.</div>';
+   return;
+ }
+ Object.keys(d).reverse().forEach(k=>{
+  const item = d[k];
+  // Safe strings handling for onclick event injection
+  const safeTitle = item.title.replace(/'/g, "\\'");
+  const safeImage = item.image.replace(/'/g, "\\'");
+  
+  list.innerHTML += `
+    <div class="item">
+      <div class="item-info">
+        <strong>${item.title}</strong>
+        <div>⭐ ${item.rating || 'N/A'} | 👍 ${item.likes || 0} | 👎 ${item.dislikes || 0}</div>
+      </div>
+      <div class="btn-group">
+        <button class="edit-btn" onclick="startEdit('${k}', '${safeTitle}', '${safeImage}', ${item.likes || 0}, ${item.dislikes || 0}, '${item.rating || '7.5'}')">Edit</button>
+        <button class="del" onclick="delArt('${k}')">Delete</button>
+      </div>
+    </div>`;
+ });
+}
+
+async function delArt(id){
+ if(confirm('Are you sure you want to delete this item?')) {
+   await fetch(DB+'/'+id+'.json',{method:'DELETE'});
+   if(editId === id) resetForm();
+   loadArtworks();
+ }
+}
+</script>
+</body>
+</html>
